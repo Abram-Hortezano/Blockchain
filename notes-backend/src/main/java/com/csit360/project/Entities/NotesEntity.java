@@ -5,26 +5,20 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 
-import java.sql.Timestamp;
-
 @Entity
 public class NotesEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private int id;
+    private Long id; 
+
     private String title;
     private String content;
-    private Timestamp created;
-    private Timestamp updated;
-
-    //foreign key
-    //private UserEntity user;
-
-    public int getId() {
+ 
+    public Long getId() {
         return id;
     }
 
-    public void setId(int id) {
+    public void setId(Long id) {
         this.id = id;
     }
 
