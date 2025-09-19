@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
+import "./App.css"; // keep styles separate
 
 function App() {
   const [notes, setNotes] = useState([]);
@@ -32,21 +33,29 @@ function App() {
   };
 
   return (
-    <div style={{ margin: "20px" }}>
-      <h1>📝 Simple Note App</h1>
-      <input
-        type="text"
-        value={newNote}
-        onChange={(e) => setNewNote(e.target.value)}
-        placeholder="Write a note..."
-      />
-      <button onClick={addNote}>Add</button>
+    <div className="app-container">
+      <h1 className="title">📝 My Notes</h1>
 
-      <ul>
+      <div className="input-container">
+        <input
+          type="text"
+          value={newNote}
+          onChange={(e) => setNewNote(e.target.value)}
+          placeholder="Write a new note..."
+          className="note-input"
+        />
+        <button onClick={addNote} className="add-btn">
+          ➕ Add
+        </button>
+      </div>
+
+      <ul className="note-list">
         {notes.map((note) => (
-          <li key={note.id}>
-            {note.content}{" "}
-            <button onClick={() => deleteNote(note.id)}>❌</button>
+          <li key={note.id} className="note-item">
+            <span>{note.content}</span>
+            <button onClick={() => deleteNote(note.id)} className="delete-btn">
+              ❌
+            </button>
           </li>
         ))}
       </ul>
