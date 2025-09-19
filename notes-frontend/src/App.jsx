@@ -8,7 +8,7 @@ function App() {
   // Load notes on start
   useEffect(() => {
     axios
-      .get("http://localhost:8080/api/notes")
+      .get("http://localhost:8000/api/notes")
       .then((res) => setNotes(res.data))
       .catch((err) => console.error(err));
   }, []);
@@ -17,7 +17,7 @@ function App() {
   const addNote = () => {
     if (newNote.trim() === "") return;
     axios
-      .post("http://localhost:8080/api/notes", { content: newNote })
+      .post("http://localhost:8000/api/notes", { content: newNote })
       .then((res) => {
         setNotes([...notes, res.data]);
         setNewNote("");
@@ -26,7 +26,7 @@ function App() {
 
   // Delete note
   const deleteNote = (id) => {
-    axios.delete(`http://localhost:8080/api/notes/${id}`).then(() => {
+    axios.delete(`http://localhost:8000/api/notes/${id}`).then(() => {
       setNotes(notes.filter((n) => n.id !== id));
     });
   };
