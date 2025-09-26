@@ -1,42 +1,139 @@
+:root {
+  --bg-color: #f9fafb;
+  --card-color: #ffffff;
+  --primary: #4f46e5;
+  --primary-hover: #4338ca;
+  --text-dark: #111827;
+  --text-light: #6b7280;
+  --danger: #ef4444;
+  --danger-hover: #dc2626;
+  --radius: 10px;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+  font-family: "Inter", sans-serif;
+  background-color: var(--bg-color);
+  color: var(--text-dark);
+}
+
+/* Make sure React root fills viewport */
 #root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
+  min-height: 100vh;
+  min-width: 100vw;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+/* App container */
+.app-container {
+  width: 100%;
+  max-width: 600px;
+  min-height: 100vh;
+  padding: 20px;
+  background: var(--card-color);
+  border-radius: var(--radius);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Title */
+.title {
   text-align: center;
+  margin-bottom: 20px;
+  color: var(--primary);
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
+/* Input area */
+.input-container {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
 }
 
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
+.note-input {
+  flex: 1;
+  padding: 12px;
+  border: 1px solid #d1d5db;
+  border-radius: var(--radius);
+  font-size: 14px;
+  min-width: 180px;
+}
+
+.add-btn {
+  background-color: var(--primary);
+  color: white;
+  border: none;
+  padding: 12px 20px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+
+.add-btn:hover {
+  background-color: var(--primary-hover);
+}
+
+/* Notes list */
+.note-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.note-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--bg-color);
+  padding: 12px 16px;
+  border-radius: var(--radius);
+  margin-bottom: 10px;
+  font-size: 15px;
+  transition: transform 0.1s;
+}
+
+.note-item:hover {
+  transform: translateX(3px);
+}
+
+.delete-btn {
+  background: var(--danger);
+  border: none;
+  color: white;
+  padding: 6px 10px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-size: 14px;
+  transition: background 0.2s;
+}
+
+.delete-btn:hover {
+  background: var(--danger-hover);
+}
+
+/* Responsive tweaks */
+@media (max-width: 600px) {
+  .app-container {
+    border-radius: 0;
+    box-shadow: none;
+    min-height: 100vh;
   }
-  to {
-    transform: rotate(360deg);
+
+  .note-input {
+    flex: 100%;
   }
-}
 
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
+  .add-btn {
+    width: 100%;
   }
-}
-
-.card {
-  padding: 2em;
-}
-
-.read-the-docs {
-  color: #888;
 }
