@@ -27,6 +27,14 @@ public class NotesService {
         return mapEntityToData(savedEntity);
     }
 
+    public NotesData updateNote(Long id, NotesData noteData) {
+        NotesEntity existingNote = notesRepository.findById(id)
+            .orElseThrow(() -> new RuntimeException("Note not found with id: " + id));
+            existingNote.setContent(noteData.getContent());
+            NotesEntity updatedEntity = notesRepository.save(existingNote);
+            return mapEntityToData(updatedEntity);
+    }
+
     public void deleteNoteById(Long id) {
         notesRepository.deleteById(id);
     }

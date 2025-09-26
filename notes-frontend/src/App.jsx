@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-import "./App.css"; // keep styles separate
+import "./App.css";
 
 function App() {
   const [notes, setNotes] = useState([]);
   const [newNote, setNewNote] = useState("");
+  const [editingId, setEditingId] = useState(null);
+  const [editingText, setEditingText] = useState("");
 
   // Load notes on start
   useEffect(() => {
@@ -32,6 +34,30 @@ function App() {
     });
   };
 
+  // Start editing a note
+  const startEditing = (note) => {
+    setEditingId(note.id);
+    setEditingText(note.content);
+  };
+
+  // Cancel editing
+  const cancelEditing = () => {
+    setEditingId(null);
+    setEditingText("");
+  };
+
+  // Handle the update submission
+  const handleUpdate = () => {
+    if (editingText.trim() === "") return;
+    axios
+      .put(`http://localhost:8000/api/notes/${editingId}`, { content: editingText })
+      .then((res) => {
+        setNotes(notes.map((note) => (note.id === editingId ? res.data : note)));
+        cancelEditing();
+      })
+      .catch((err) => console.error(err));
+  };
+
   return (
     <div className="app-container">
       <h1 className="title">📝 My Notes</h1>
@@ -52,10 +78,28 @@ function App() {
       <ul className="note-list">
         {notes.map((note) => (
           <li key={note.id} className="note-item">
-            <span>{note.content}</span>
-            <button onClick={() => deleteNote(note.id)} className="delete-btn">
-              ❌
-            </button>
+            {editingId === note.id ? (
+              <>
+                <input
+                  type="text"
+                  value={editingText}
+                  onChange={(e) => setEditingText(e.target.value)}
+                  className="edit-input"
+                />
+                <div className="btn-group">
+                  <button onClick={handleUpdate} className="save-btn">✅</button>
+                  <button onClick={cancelEditing} className="cancel-btn">↪️</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <span>{note.content}</span>
+                <div className="btn-group">
+                  <button onClick={() => startEditing(note)} className="edit-btn">✏️</button>
+                  <button onClick={() => deleteNote(note.id)} className="delete-btn">❌</button>
+                </div>
+              </>
+            )}
           </li>
         ))}
       </ul>
