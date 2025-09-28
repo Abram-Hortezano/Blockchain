@@ -20,6 +20,11 @@ public class NotesController {
     public ResponseEntity<List<NotesData>> getAllNotes() {
         return ResponseEntity.ok(notesService.getAllNotes());
     }
+    @PutMapping("/{id}")
+    public ResponseEntity<NotesData> updateNote(@PathVariable Long id, @RequestBody NotesData noteData) {
+        NotesData updatedNote = notesService.updateNote(id, noteData);
+        return ResponseEntity.ok(updatedNote);
+    }
 
     @PostMapping
     public ResponseEntity<NotesData> createNote(@RequestBody NotesData noteData) {
