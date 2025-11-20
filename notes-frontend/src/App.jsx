@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, use } from "react";
 import axios from "axios";
 import "./App.css";
 
@@ -7,7 +7,16 @@ function App() {
   const [newNote, setNewNote] = useState("");
   const [editingId, setEditingId] = useState(null);
   const [editingText, setEditingText] = useState("");
+  const [walletApiKey, setWalletApiKey] = useState(null);
+  const [wallets, setWallets] = useState([]);
+  const [selectedWallet, setSelectedWallet] = useState('');
+  const [walletName, setWalletName] = useState(null);
+  const [walletAddress, setWalletAddress] = useState('');
 
+  useEffect(() => {
+    if(window.cardano)
+      setWallets(Object.keys(window.cardano));
+  }, []);
   // Load notes on start
   useEffect(() => {
     axios
@@ -46,6 +55,11 @@ function App() {
     setEditingText("");
   };
 
+  const handleWalletChange = (e) => {
+    setSelectedWallet(e.target.value);
+    selectedWallet(walletName);
+  };
+
   // Handle the update submission
   const handleUpdate = () => {
     if (editingText.trim() === "") return;
@@ -58,10 +72,56 @@ function App() {
       .catch((err) => console.error(err));
   };
 
+  const handleConnectWallet = async () => {
+    console.log("Connecting to wallet:", window.cardano[selectedWallet]);
+    if (selectedWallet && window.cardano[selectedWallet]) {
+      try {
+        const api = await window.cardano[selectedWallet].enable();
+        setWalletApiKey(api);
+        console.log("Connected to wallet:", api);
+        const address = await api.getChangeAddress();
+        setWalletAddress(address);
+      } catch (error) {
+        console.error("Failed to connect to wallet:", error);
+      }
+    }
+    
+  };
+
+
+
   return (
     <div className="app-container">
-      <h1 className="title">📝 My Notes</h1>
+      {/* Cardano Wallet Section */}
+      <div className="cardano-container">
 
+      <div className="wallet-address">
+        <div className="wallet-connect">
+          <select value={selectedWallet} onChange={handleWalletChange}>
+            <option value="">Select Wallet</option>
+            {wallets.length > 0 && wallets.map((wallet) => (
+
+              <option key={wallet} value={wallet}>{wallet}</option>
+            ))}
+          </select>
+          <button onClick={() => handleConnectWallet(selectedWallet)}>Connect Wallet</button>
+        </div>
+        <input type="text" placeholder="Wallet Address" value={walletAddress} readOnly />
+      </div>
+        <div className="input-fields">
+          <label>Receiver:</label>
+          <input type="text" placeholder="Enter Receiptient Address" />
+        
+          <label>Amount:</label>
+          <input type="number" placeholder="Enter Amount in ADA" />
+          <button>Send ADA</button>
+        </div>
+
+      </div>
+
+      {/* Notes Section */}
+      <div className="notes-container">
+      <h1 className="title">📝 My Notes</h1>
       <div className="input-container">
         <input
           type="text"
@@ -103,6 +163,7 @@ function App() {
           </li>
         ))}
       </ul>
+    </div>
     </div>
   );
 }

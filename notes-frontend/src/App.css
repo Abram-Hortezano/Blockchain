@@ -28,20 +28,72 @@ html, body {
   justify-content: center;
   align-items: flex-start;
 }
-
+.cardano-container{
+  display: flex;
+  flex-direction: column;
+  /* justify-content: center; */
+  align-items: center;
+  margin-bottom: 20px;
+  border: 1px solid red;
+  width: 50%;
+}
+.wallet-address{
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+}
+.wallet-connect{
+  display: flex;
+  flex-direction: row;
+  gap: 10px;
+  margin-top: 10px;
+}
+.wallet-connect select{
+  padding: 8px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: var(--radius);
+  font-size: 14px;
+}
+.wallet-connect button{
+  background-color: var(--primary);
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.input-fields{
+  display: flex;
+  flex-direction: row;
+  gap: 10px;
+  margin-top: 10px;
+}
+.input-fields label{
+  display: flex;
+  flex-direction: row;
+  gap: 10px;
+  margin-top: 10px;
+}
 /* App container */
 .app-container {
   width: 100%;
-  max-width: 600px;
+  /* max-width: 600px; */
   min-height: 100vh;
   padding: 20px;
   background: var(--card-color);
   border-radius: var(--radius);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
 }
-
+.notes-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  margin-left: 20px;
+}
 /* Title */
 .title {
   text-align: center;
