@@ -11,7 +11,7 @@ function App() {
   const [walletApiKey, setWalletApiKey] = useState(null);
   const [wallets, setWallets] = useState([]);
   const [selectedWallet, setSelectedWallet] = useState('');
-  const [walletName, setWalletName] = useState(null);
+  // const [walletName, setWalletName] = useState(null);
   const [walletAddress, setWalletAddress] = useState('');
   const [Recipient, setRecipient] = useState('');
   const [Amount, setAmount] = useState(0n);
@@ -21,8 +21,9 @@ function App() {
   }));
 
   useEffect(() => {
-    // if(window.cardano)
+    if(window.cardano){
       setWallets(Object.keys(window.cardano));
+    }
   }, []);
 
   // Load notes on start
@@ -64,8 +65,8 @@ function App() {
   };
 
   const handleWalletChange = (e) => {
-    setSelectedWallet(e.target.value);
-    selectedWallet(walletName);
+    const walletName = e.target.value;
+    setSelectedWallet(walletName);
   };
 
   // Handle the update submission
@@ -87,6 +88,7 @@ function App() {
         const api = await window.cardano[selectedWallet].enable();
         setWalletApiKey(api);
         console.log("Connected to wallet:", api);
+
         const address = await api.getChangeAddress();
         setWalletAddress(address);
       } catch (error) {
@@ -110,7 +112,7 @@ function App() {
         const blaze = await Blaze.from(provider, wallet);
         console.log('blaze instance:', blaze);
 
-        const bech32Address = Core.Address.fromHex(walletAddress).toBech32();
+        const bech32Address = Core.Address.fromBytes(Buffer.from(walletAddress, 'hex')).toBech32();
         console.log('bech32 address:', bech32Address);
 
         const tx = await blaze
