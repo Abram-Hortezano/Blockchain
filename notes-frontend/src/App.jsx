@@ -1,4 +1,5 @@
 import React, { useState, useEffect, use } from "react";
+import { WebWallet, Blaze, Blockfrost, Core } from '@blaze-cardano/sdk';
 import axios from "axios";
 import "./App.css";
 
@@ -12,11 +13,18 @@ function App() {
   const [selectedWallet, setSelectedWallet] = useState('');
   const [walletName, setWalletName] = useState(null);
   const [walletAddress, setWalletAddress] = useState('');
+  const [Recipient, setRecipient] = useState('');
+  const [Amount, setAmount] = useState(0n);
+  const [provider] = useState(() => new Blockfrost({
+    network: 'cardano-preview',
+    projectId: import.meta.env.VITE_BLOCKFROST_PROJECT_KEY,
+  }));
 
   useEffect(() => {
-    if(window.cardano)
+    // if(window.cardano)
       setWallets(Object.keys(window.cardano));
   }, []);
+
   // Load notes on start
   useEffect(() => {
     axios
@@ -88,6 +96,43 @@ function App() {
     
   };
 
+  const handleRecipientChange = (e) => {
+    setRecipient(e.target.value);
+  }
+  const handleAmountChange = (e) => {
+    setAmount(e.target.value);
+  }
+
+  const handleSubmitTransaction = async () => {
+    if(walletApiKey){
+      try{
+        const wallet = new WebWallet(walletApiKey);
+        const blaze = await Blaze.from(provider, wallet);
+        console.log('blaze instance:', blaze);
+
+        const bech32Address = Core.Address.fromHex(walletAddress).toBech32();
+        console.log('bech32 address:', bech32Address);
+
+        const tx = await blaze
+        .newTransaction()
+        .payLovelace(Core.Address.fromBech32(Recipient), Amount)
+        .complete();
+
+        console.log('constructed transaction:', tx.toCbor());
+
+        const signedTx = await wallet.signTransaction(tx);
+        console.log('signed transaction:', signedTx.toCbor());
+
+        const txHash = await blaze.provider.postTransactionToChain(signedTx);
+        
+        console.log('transaction submitted with hash:', txHash);
+
+      }catch(error){
+        console.error('error submit transaction:', error);
+      }
+    }
+  }
+
 
 
   return (
@@ -104,17 +149,20 @@ function App() {
               <option key={wallet} value={wallet}>{wallet}</option>
             ))}
           </select>
-          <button onClick={() => handleConnectWallet(selectedWallet)}>Connect Wallet</button>
+          {
+            walletApiKey ? (<div>Wallet Connected</div>) : (<button onClick={handleConnectWallet}>Wallet Not Connected</button>)
+          }
+          {/* <button onClick={() => handleConnectWallet(selectedWallet)}>Connect Wallet</button> */}
         </div>
         <input type="text" placeholder="Wallet Address" value={walletAddress} readOnly />
       </div>
         <div className="input-fields">
           <label>Receiver:</label>
-          <input type="text" placeholder="Enter Receiptient Address" />
+          <input type="text" placeholder="Enter Receiptient Address" value={Recipient} onChange={handleRecipientChange}/>
         
           <label>Amount:</label>
-          <input type="number" placeholder="Enter Amount in ADA" />
-          <button>Send ADA</button>
+          <input type="number" placeholder="Enter Amount in ADA" value={Amount} onChange={handleAmountChange} />
+          <button onClick={handleSubmitTransaction}>Send ADA</button>
         </div>
 
       </div>
