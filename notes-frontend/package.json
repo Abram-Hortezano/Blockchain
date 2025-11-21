@@ -10,7 +10,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@blaze-cardano/sdk": "^0.2.44",
     "axios": "^1.12.2",
+    "lucid-cardano": "^0.10.11",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"
   },
