@@ -64,8 +64,8 @@ function App() {
     setEditingText("");
   };
 
-  const handleWalletChange = (e) => {
-    const walletName = e.target.value;
+  const handleWalletChange = (event) => {
+    const walletName = event.target.value;
     setSelectedWallet(walletName);
   };
 
@@ -82,12 +82,13 @@ function App() {
   };
 
   const handleConnectWallet = async () => {
-    console.log("Connecting to wallet:", window.cardano[selectedWallet]);
+    console.log("Connecting to wallet:", selectedWallet);
     if (selectedWallet && window.cardano[selectedWallet]) {
       try {
         const api = await window.cardano[selectedWallet].enable();
         setWalletApiKey(api);
         console.log("Connected to wallet:", api);
+
 
         const address = await api.getChangeAddress();
         setWalletAddress(address);
@@ -98,11 +99,11 @@ function App() {
     
   };
 
-  const handleRecipientChange = (e) => {
-    setRecipient(e.target.value);
+  const handleRecipientChange = (event) => {
+    setRecipient(event.target.value);
   }
-  const handleAmountChange = (e) => {
-    setAmount(e.target.value);
+  const handleAmountChange = (event) => {
+    setAmount(BigInt(event.target.value));
   }
 
   const handleSubmitTransaction = async () => {
@@ -122,8 +123,13 @@ function App() {
 
         console.log('constructed transaction:', tx.toCbor());
 
-        const signedTx = await wallet.signTransaction(tx);
+        const signedTx = await blaze.signTransaction(tx);
         console.log('signed transaction:', signedTx.toCbor());
+
+        // const signexTx = signedTx.toCbor();
+        const utxos = await walletApiKey.getUtxos();
+        console.log("UTxOs:", utxos);
+
 
         const txHash = await blaze.provider.postTransactionToChain(signedTx);
         
