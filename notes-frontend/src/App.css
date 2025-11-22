@@ -35,7 +35,7 @@ html, body {
   /* justify-content: center; */
   align-items: center;
   margin-bottom: 20px;
-  border: 1px solid red;
+  /* border: 1px solid red; */
   width: 50%;
 }
 .wallet-address{
