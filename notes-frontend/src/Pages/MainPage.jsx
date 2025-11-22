@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
+import { Alert } from "@material-tailwind/react";
 import NoteCard from "../components/NoteCard";
 import NoteModal from "../components/NoteModal";
-import { connectWallet, checkConnection, createNoteTransaction, deleteNoteTransaction } from "../services/blockchainService";
+import { connectWallet, createNoteTransaction, deleteNoteTransaction } from "../services/blockchainService";
 
 // Helper to hash content (SHA-256)
 async function sha256(message) {
@@ -23,16 +24,9 @@ export default function MainPage() {
   const [isConnected, setIsConnected] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  useEffect(() => {
-    async function initWallet() {
-      const connectedWallet = await checkConnection();
-      if (connectedWallet) {
-        setWallet(connectedWallet);
-        setIsConnected(true);
-      }
-    }
-    initWallet();
-  }, []);
+  // Alert State
+  const [showAlert, setShowAlert] = useState(false);
+  const [alertMessage, setAlertMessage] = useState("");
 
   const handleConnect = async () => {
     try {
@@ -40,9 +34,11 @@ export default function MainPage() {
       if (connectedWallet) {
         setWallet(connectedWallet);
         setIsConnected(true);
+        setShowAlert(false);
       }
     } catch (error) {
-      alert("Failed to connect to Lace wallet. Please make sure it is installed and active.");
+      setAlertMessage("Failed to connect to Lace wallet. Please make sure it is installed and active.");
+      setShowAlert(true);
     }
   };
 
@@ -82,7 +78,9 @@ export default function MainPage() {
 
         // Blockchain Transaction
         if (wallet) {
-          await createNoteTransaction(wallet, noteData);
+          const output = await createNoteTransaction(wallet, noteData);
+          console.log("Transaction ID:", output);
+          console.log("View on explorer:", `https://preview.cardanoscan.io/transaction/${output}`);
         }
 
         // Local State Update
@@ -112,7 +110,8 @@ export default function MainPage() {
         setOpen(false);
       } catch (error) {
         console.error("Transaction failed", error);
-        alert("Transaction failed or cancelled.");
+        setAlertMessage("Transaction failed or cancelled.");
+        setShowAlert(true);
       } finally {
         setIsProcessing(false);
       }
@@ -131,44 +130,68 @@ export default function MainPage() {
       setNotes(notes.filter((note) => note.id !== id));
     } catch (error) {
       console.error("Delete transaction failed", error);
-      alert("Delete transaction failed or cancelled.");
+      setAlertMessage("Delete transaction failed or cancelled.");
+      setShowAlert(true);
     } finally {
       setIsProcessing(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-bg-primary p-8">
+    <div className="min-h-screen bg-bg-primary p-4 md:p-8">
       {/* Header */}
-      <div className="max-w-7xl mx-auto mb-12 flex flex-col items-center relative">
-        <h2 className="text-3xl font-bold text-text-high text-center my-8">
-          My Notes
-        </h2>
+      <div className="max-w-7xl mx-auto mb-8 md:mb-12">
+        <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+          <h2 className="text-2xl md:text-3xl font-bold text-text-high">
+            My Notes
+          </h2>
 
-        {/* Connect Wallet Button */}
-        <div className="absolute right-0 top-8">
-          {!isConnected ? (
-            <button
-              onClick={handleConnect}
-              className="bg-accent hover:bg-blue-600 text-white font-bold py-2 px-6 rounded-full transition-colors shadow-lg shadow-blue-500/20"
-            >
-              Connect Wallet
-            </button>
-          ) : (
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-green-500"></div>
-              <span className="text-text-low text-sm">Lace Connected</span>
-            </div>
-          )}
+          {/* Connect Wallet Button */}
+          <div className="group relative">
+            {!isConnected ? (
+              <button
+                onClick={handleConnect}
+                className="relative w-12 h-12 md:w-14 md:h-14 rounded-full bg-bg-secondary hover:bg-gray-700 transition-all duration-200 flex items-center justify-center shadow-lg border border-gray-800/50 hover:border-accent/50"
+                title="Connect To Lace?"
+              >
+                <img
+                  src="https://www.lace.io/favicon.ico"
+                  alt="Lace Logo"
+                  className="w-8 h-8 md:w-10 md:h-10"
+                />
+                {/* Tooltip */}
+                <span className="absolute -bottom-12 left-1/2 -translate-x-1/2 bg-bg-secondary text-text-high text-xs px-3 py-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap border border-gray-800/50 shadow-xl">
+                  Connect To Lace?
+                </span>
+              </button>
+            ) : (
+              <div className="flex items-center gap-2 bg-bg-secondary px-4 py-2 rounded-full border border-gray-800/50">
+                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+                <span className="text-text-low text-sm">Lace Connected</span>
+              </div>
+            )}
+          </div>
         </div>
+      </div>
+
+      {/* Error Alert - Bottom Right */}
+      <div className="fixed bottom-4 right-4 z-50 max-w-sm">
+        <Alert
+          open={showAlert}
+          onClose={() => setShowAlert(false)}
+          color="red"
+          className="bg-red-500/90 backdrop-blur-sm"
+        >
+          {alertMessage}
+        </Alert>
       </div>
 
       {/* Content Area */}
       {!isConnected ? (
         <div className="flex flex-col items-center justify-center h-[50vh] text-center">
-          <div className="bg-bg-secondary p-8 rounded-2xl border border-gray-800/50 max-w-md">
-            <h3 className="text-2xl font-bold text-text-high mb-4">Wallet Required</h3>
-            <p className="text-text-low mb-6">
+          <div className="bg-bg-secondary p-6 md:p-8 rounded-2xl border border-gray-800/50 max-w-md mx-4">
+            <h3 className="text-xl md:text-2xl font-bold text-text-high mb-4">Wallet Required</h3>
+            <p className="text-text-low mb-6 text-sm md:text-base">
               Connect to Lace to start taking notes securely on the Cardano blockchain.
             </p>
             <button
@@ -182,7 +205,7 @@ export default function MainPage() {
       ) : (
         <>
           {/* Notes Grid */}
-          <div className={`max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-20 ${isProcessing ? 'opacity-50 pointer-events-none' : ''}`}>
+          <div className={`max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-20 ${isProcessing ? 'opacity-50 pointer-events-none' : ''}`}>
             {/* Add Note Card */}
             <NoteCard isAddCard onEdit={handleOpen} />
 
