@@ -1,225 +1,346 @@
-import React, { useState, useEffect, use } from "react";
+import React, { useState, useEffect } from "react";
 import { WebWallet, Blaze, Blockfrost, Core } from '@blaze-cardano/sdk';
 import axios from "axios";
 import "./App.css";
 
+const extractCardanoAddress = (text) => {
+  if (!text) return null;
+  // Regex looks for "addr_test1" followed by valid bech32 characters
+  const regex = /(addr_test1[a-z0-9]+)/i;
+  const match = text.match(regex);
+  return match ? match[0] : null;
+};
+
 function App() {
+  // --- STATE MANAGEMENT ---
   const [notes, setNotes] = useState([]);
   const [newNote, setNewNote] = useState("");
   const [editingId, setEditingId] = useState(null);
   const [editingText, setEditingText] = useState("");
+  
   const [walletApiKey, setWalletApiKey] = useState(null);
   const [wallets, setWallets] = useState([]);
   const [selectedWallet, setSelectedWallet] = useState('');
-  // const [walletName, setWalletName] = useState(null);
   const [walletAddress, setWalletAddress] = useState('');
-  const [Recipient, setRecipient] = useState('');
-  const [Amount, setAmount] = useState(0n);
+  
+  const [recipient, setRecipient] = useState('');
+  const [amount, setAmount] = useState(0);
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [transactionStatus, setTransactionStatus] = useState(null);
+  const [copyFeedback, setCopyFeedback] = useState("Click to Copy");
+
+  // Load History from Local Storage
+  const [history, setHistory] = useState(() => {
+    const saved = localStorage.getItem("txHistory");
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  // Blockfrost Provider (Preview Network)
   const [provider] = useState(() => new Blockfrost({
     network: 'cardano-preview',
     projectId: import.meta.env.VITE_BLOCKFROST_PROJECT_KEY,
   }));
 
+  // --- INITIALIZATION ---
   useEffect(() => {
-    if(window.cardano){
+    if (window.cardano) {
       setWallets(Object.keys(window.cardano));
     }
   }, []);
 
-  // Load notes on start
   useEffect(() => {
-    axios
-      .get("http://localhost:8000/api/notes")
+    axios.get("http://localhost:8000/api/notes")
       .then((res) => setNotes(res.data))
-      .catch((err) => console.error(err));
+      .catch((err) => console.error("Error loading notes:", err));
   }, []);
 
-  // Add new note
-  const addNote = () => {
-    if (newNote.trim() === "") return;
-    axios
-      .post("http://localhost:8000/api/notes", { content: newNote })
-      .then((res) => {
-        setNotes([...notes, res.data]);
-        setNewNote("");
-      });
-  };
+  useEffect(() => {
+    localStorage.setItem("txHistory", JSON.stringify(history));
+  }, [history]);
 
-  // Delete note
-  const deleteNote = (id) => {
-    axios.delete(`http://localhost:8000/api/notes/${id}`).then(() => {
-      setNotes(notes.filter((n) => n.id !== id));
-    });
-  };
-
-  // Start editing a note
-  const startEditing = (note) => {
-    setEditingId(note.id);
-    setEditingText(note.content);
-  };
-
-  // Cancel editing
-  const cancelEditing = () => {
-    setEditingId(null);
-    setEditingText("");
-  };
-
+  // --- WALLET HANDLERS ---
   const handleWalletChange = (event) => {
-    const walletName = event.target.value;
-    setSelectedWallet(walletName);
-  };
-
-  // Handle the update submission
-  const handleUpdate = () => {
-    if (editingText.trim() === "") return;
-    axios
-      .put(`http://localhost:8000/api/notes/${editingId}`, { content: editingText })
-      .then((res) => {
-        setNotes(notes.map((note) => (note.id === editingId ? res.data : note)));
-        cancelEditing();
-      })
-      .catch((err) => console.error(err));
+    setSelectedWallet(event.target.value);
+    setWalletApiKey(null);
+    setWalletAddress('');
+    setTransactionStatus(null);
   };
 
   const handleConnectWallet = async () => {
-    console.log("Connecting to wallet:", selectedWallet);
-    if (selectedWallet && window.cardano[selectedWallet]) {
-      try {
+    if (!selectedWallet) return;
+    setIsConnecting(true);
+    setTransactionStatus('Connecting...');
+    try {
+      if (window.cardano[selectedWallet]) {
         const api = await window.cardano[selectedWallet].enable();
         setWalletApiKey(api);
-        console.log("Connected to wallet:", api);
-
-
-        const address = await api.getChangeAddress();
-        setWalletAddress(address);
-      } catch (error) {
-        console.error("Failed to connect to wallet:", error);
+        const changeAddressHex = await api.getChangeAddress();
+        const bech32Address = Core.Address.fromBytes(Buffer.from(changeAddressHex, 'hex')).toBech32();
+        setWalletAddress(bech32Address);
+        setTransactionStatus('Wallet Connected ✅');
       }
+    } catch (error) {
+      console.error(error);
+      setTransactionStatus('Connection Failed ❌');
+    } finally {
+      setIsConnecting(false);
     }
-    
   };
 
-  const handleRecipientChange = (event) => {
-    setRecipient(event.target.value);
-  }
-  const handleAmountChange = (event) => {
-    setAmount(BigInt(event.target.value));
-  }
+  const handleCopyAddress = () => {
+    if (!walletAddress) return;
+    navigator.clipboard.writeText(walletAddress);
+    setCopyFeedback("Copied! ✅");
+    setTimeout(() => setCopyFeedback("Click to Copy"), 2000);
+  };
 
+  // --- TRANSACTION LOGIC ---
   const handleSubmitTransaction = async () => {
-    if(walletApiKey){
-      try{
-        const wallet = new WebWallet(walletApiKey);
-        const blaze = await Blaze.from(provider, wallet);
-        console.log('blaze instance:', blaze);
+    if (!walletApiKey) {
+      setTransactionStatus('🚫 Connect wallet first.');
+      return;
+    }
+    if (!recipient || amount <= 0) {
+      setTransactionStatus('🚫 Invalid recipient or amount.');
+      return;
+    }
+    
+    setTransactionStatus('⏳ Building Transaction...');
 
-        const bech32Address = Core.Address.fromBytes(Buffer.from(walletAddress, 'hex')).toBech32();
-        console.log('bech32 address:', bech32Address);
+    try {
+      const floatAmount = parseFloat(amount);
+      if (isNaN(floatAmount) || floatAmount <= 0) return;
+      
+      const lovelaceAmount = BigInt(Math.floor(floatAmount * 1_000_000));
+      const wallet = new WebWallet(walletApiKey);
+      const blaze = await Blaze.from(provider, wallet);
+      
+      // Verify address before sending
+      let recipientAddress;
+      try {
+        recipientAddress = Core.Address.fromBech32(recipient);
+      } catch (e) {
+        setTransactionStatus("🚫 Invalid Address Format");
+        return;
+      }
 
-        const tx = await blaze
+      const tx = await blaze
         .newTransaction()
-        .payLovelace(Core.Address.fromBech32(Recipient), Amount)
+        .payLovelace(recipientAddress, lovelaceAmount)
         .complete();
 
-        console.log('constructed transaction:', tx.toCbor());
+      setTransactionStatus('⏳ Signing...');
+      const signedTx = await blaze.signTransaction(tx);
+      
+      setTransactionStatus('⏳ Submitting...');
+      const txHash = await blaze.provider.postTransactionToChain(signedTx);
+      
+      setTransactionStatus(`✅ Sent!`);
+      
+      // Update History
+      const newRecord = {
+        id: Date.now(),
+        date: new Date().toLocaleString(),
+        recipient: recipient,
+        amount: floatAmount,
+        txHash: txHash
+      };
+      setHistory(prev => [newRecord, ...prev]);
 
-        const signedTx = await blaze.signTransaction(tx);
-        console.log('signed transaction:', signedTx.toCbor());
+      setRecipient('');
+      setAmount(0);
 
-        // const signexTx = signedTx.toCbor();
-        const utxos = await walletApiKey.getUtxos();
-        console.log("UTxOs:", utxos);
-
-
-        const txHash = await blaze.provider.postTransactionToChain(signedTx);
-        
-        console.log('transaction submitted with hash:', txHash);
-
-      }catch(error){
-        console.error('error submit transaction:', error);
-      }
+    } catch(error) {
+      console.error(error);
+      setTransactionStatus(`❌ Failed: ${error.message || 'Unknown error'}`);
     }
-  }
+  };
 
+  const clearHistory = () => {
+    if(window.confirm("Clear transaction history?")) {
+        setHistory([]);
+    }
+  };
 
+  // --- NOTES HANDLERS ---
+  const addNote = () => {
+    if (newNote.trim() === "") return;
+    axios.post("http://localhost:8000/api/notes", { content: newNote })
+      .then((res) => { setNotes([...notes, res.data]); setNewNote(""); });
+  };
+  const deleteNote = (id) => axios.delete(`http://localhost:8000/api/notes/${id}`).then(() => setNotes(notes.filter((n) => n.id !== id)));
+  const updateNote = () => {
+    if (editingText.trim() === "") return;
+    axios.put(`http://localhost:8000/api/notes/${editingId}`, { content: editingText })
+      .then((res) => { setNotes(notes.map((note) => (note.id === editingId ? res.data : note))); setEditingId(null); });
+  };
+
+  // The Magic Auto-Fill Handler
+  const handleNoteClick = (note) => {
+    if (editingId !== null) return;
+    
+    const extractedAddress = extractCardanoAddress(note.content);
+    if (extractedAddress) {
+      setRecipient(extractedAddress);
+      setTransactionStatus(`📍 Address extracted for: "${note.content.substring(0, 15)}..."`);
+    } else {
+      setTransactionStatus('⚠️ No "addr_test1..." found in this note.');
+    }
+  };
 
   return (
     <div className="app-container">
-      {/* Cardano Wallet Section */}
-      <div className="cardano-container">
+      <header className="app-header">
+        <h1 className="main-title">ADA <span className="highlight">NEXUS</span></h1>
+        <p className="subtitle">Testnet Command Center</p>
+      </header>
 
-      <div className="wallet-address">
-        <div className="wallet-connect">
-          <select value={selectedWallet} onChange={handleWalletChange}>
-            <option value="">Select Wallet</option>
-            {wallets.length > 0 && wallets.map((wallet) => (
-
-              <option key={wallet} value={wallet}>{wallet}</option>
-            ))}
-          </select>
-          {
-            walletApiKey ? (<div>Wallet Connected</div>) : (<button onClick={handleConnectWallet}>Wallet Not Connected</button>)
-          }
-          {/* <button onClick={() => handleConnectWallet(selectedWallet)}>Connect Wallet</button> */}
-        </div>
-        <input type="text" placeholder="Wallet Address" value={walletAddress} readOnly />
-      </div>
-        <div className="input-fields">
-          <label>Receiver:</label>
-          <input type="text" placeholder="Enter Receiptient Address" value={Recipient} onChange={handleRecipientChange}/>
+      <div className="dashboard-grid">
         
-          <label>Amount:</label>
-          <input type="number" placeholder="Enter Amount in ADA" value={Amount} onChange={handleAmountChange} />
-          <button onClick={handleSubmitTransaction}>Send ADA</button>
+        {/* --- LEFT: Wallet & Actions --- */}
+        <div className="card wallet-card">
+          <div className="card-header">
+            <h2>💳 Operations</h2>
+          </div>
+          
+          <div className="card-body">
+            {/* Wallet Select */}
+            <div className="control-group">
+              <label>Connection</label>
+              <div className="wallet-connect-row">
+                <select value={selectedWallet} onChange={handleWalletChange} disabled={isConnecting} className="wallet-select">
+                  <option value="">Select Provider</option>
+                  {wallets.length > 0 ? wallets.map(w => <option key={w} value={w}>{w}</option>) : <option disabled>No Wallets</option>}
+                </select>
+                <button onClick={handleConnectWallet} disabled={!selectedWallet || isConnecting || walletApiKey} className={walletApiKey ? 'btn-connected' : 'btn-connect'}>
+                  {isConnecting ? '...' : (walletApiKey ? 'On' : 'Connect')}
+                </button>
+              </div>
+            </div>
+
+            {/* Click-to-Copy Address Display */}
+            <div 
+                className={`info-display ${walletAddress ? 'clickable' : ''}`} 
+                onClick={handleCopyAddress}
+                title="Click to copy address"
+            >
+                <div className="info-row">
+                    <span className="info-label">Your Address:</span>
+                    <span className="copy-hint">{walletAddress ? copyFeedback : ''}</span>
+                </div>
+                <span className={`info-value ${walletApiKey ? 'active' : ''}`}>
+                   {walletAddress ? `${walletAddress.substring(0, 15)}...${walletAddress.substring(walletAddress.length - 6)}` : 'Disconnected'}
+                   {walletAddress && <span className="copy-icon">📋</span>}
+                </span>
+            </div>
+
+            <div className="divider"></div>
+
+            {/* Form */}
+            <div className="control-group">
+              <label>Recipient</label>
+              <input type="text" placeholder="addr_test..." value={recipient} onChange={e => setRecipient(e.target.value)} className="input-field monospace" />
+            </div>
+            <div className="control-group">
+              <label>Amount (ADA)</label>
+              <input type="number" placeholder="0.00" value={amount} onChange={e => setAmount(e.target.value)} className="input-field" />
+            </div>
+            
+            <button onClick={handleSubmitTransaction} disabled={!walletApiKey || amount <= 0 || !recipient.trim()} className="btn-send">
+              SEND ADA 🚀
+            </button>
+            <div className="status-display">{transactionStatus || 'System Ready'}</div>
+          </div>
         </div>
 
+        {/* --- RIGHT: Smart Notes --- */}
+        <div className="card notes-card">
+          <div className="card-header">
+            <h2>📚 Address Book</h2>
+            <span className="badge">{notes.length}</span>
+          </div>
+          <div className="card-body flex-column">
+             <div className="add-note-row">
+              <input type="text" value={newNote} onChange={(e) => setNewNote(e.target.value)} placeholder="e.g. Mors Wallet: addr_test1..." className="note-input" />
+              <button onClick={addNote} className="btn-icon-add">＋</button>
+            </div>
+            
+            <div className="notes-scroll-area">
+              <ul className="note-list">
+                {notes.map((note) => {
+                  const hasAddress = extractCardanoAddress(note.content);
+                  return (
+                    <li key={note.id} 
+                        className={`note-item ${hasAddress ? 'contains-address' : ''}`} 
+                        onClick={() => handleNoteClick(note)}>
+                      {editingId === note.id ? (
+                        <div className="edit-mode">
+                          <input type="text" value={editingText} onChange={(e) => setEditingText(e.target.value)} className="edit-input" autoFocus />
+                          <div className="mini-actions">
+                            <button onClick={updateNote} className="btn-mini save">✓</button>
+                            <button onClick={() => setEditingId(null)} className="btn-mini cancel">✕</button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="view-mode">
+                          <span className="note-text">{note.content}</span>
+                          {hasAddress && <span className="address-badge">LINK</span>}
+                          <div className="mini-actions" onClick={(e) => e.stopPropagation()}> 
+                            <button onClick={() => {setEditingId(note.id); setEditingText(note.content)}} className="btn-mini edit">✎</button>
+                            <button onClick={() => deleteNote(note.id)} className="btn-mini delete">🗑</button>
+                          </div>
+                        </div>
+                      )}
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Notes Section */}
-      <div className="notes-container">
-      <h1 className="title">📝 My Notes</h1>
-      <div className="input-container">
-        <input
-          type="text"
-          value={newNote}
-          onChange={(e) => setNewNote(e.target.value)}
-          placeholder="Write a new note..."
-          className="note-input"
-        />
-        <button onClick={addNote} className="add-btn">
-          ➕ Add
-        </button>
-      </div>
-
-      <ul className="note-list">
-        {notes.map((note) => (
-          <li key={note.id} className="note-item">
-            {editingId === note.id ? (
-              <>
-                <input
-                  type="text"
-                  value={editingText}
-                  onChange={(e) => setEditingText(e.target.value)}
-                  className="edit-input"
-                />
-                <div className="btn-group">
-                  <button onClick={handleUpdate} className="save-btn">✅</button>
-                  <button onClick={cancelEditing} className="cancel-btn">↪️</button>
-                </div>
-              </>
+      {/* --- BOTTOM: History --- */}
+      <div className="card history-card">
+        <div className="card-header">
+            <h2>📜 Transaction History</h2>
+            {history.length > 0 && <button onClick={clearHistory} className="btn-clear">Clear Log</button>}
+        </div>
+        <div className="card-body">
+            {history.length === 0 ? (
+                <div className="empty-state">No transactions recorded yet.</div>
             ) : (
-              <>
-                <span>{note.content}</span>
-                <div className="btn-group">
-                  <button onClick={() => startEditing(note)} className="edit-btn">✏️</button>
-                  <button onClick={() => deleteNote(note.id)} className="delete-btn">❌</button>
+                <div className="table-responsive">
+                    <table className="history-table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Tx Hash (Explorer)</th>
+                                <th>To</th>
+                                <th>Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {history.map((tx) => (
+                                <tr key={tx.id}>
+                                    <td className="col-date">{tx.date}</td>
+                                    <td className="col-hash">
+                                        <a href={`https://preview.cardanoscan.io/transaction/${tx.txHash}`} target="_blank" rel="noreferrer">
+                                            {tx.txHash.substring(0, 15)}...
+                                        </a>
+                                    </td>
+                                    <td className="col-to" title={tx.recipient}>
+                                        {tx.recipient.substring(0, 10)}...
+                                    </td>
+                                    <td className="col-amount">-{tx.amount} ₳</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
                 </div>
-              </>
             )}
-          </li>
-        ))}
-      </ul>
-    </div>
+        </div>
+      </div>
     </div>
   );
 }
