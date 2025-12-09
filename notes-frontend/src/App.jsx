@@ -77,6 +77,12 @@ function App() {
         const changeAddressHex = await api.getChangeAddress();
         const bech32Address = Core.Address.fromBytes(Buffer.from(changeAddressHex, 'hex')).toBech32();
         setWalletAddress(bech32Address);
+        const utxos = await api.getUtxos();
+        console.log("-----------------------------------------");
+        console.log("✅ WALLET CONNECTION SUCCESSFUL");
+        console.log(`Address: ${bech32Address}`);
+        console.log(`Available UTXOs (${utxos.length}):`, utxos);
+        console.log("-----------------------------------------");
         setTransactionStatus('Wallet Connected ✅');
       }
     } catch (error) {
