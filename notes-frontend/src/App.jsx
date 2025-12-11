@@ -3,9 +3,18 @@ import { WebWallet, Blaze, Blockfrost, Core } from '@blaze-cardano/sdk';
 import axios from "axios";
 import "./App.css";
 
+// --- HELPER FUNCTIONS ---
+
+// Convert Lovelace (BigInt) to ADA (String) for display
+const lovelaceToAda = (lovelace) => {
+  if (!lovelace) return "0.000000";
+  const ada = Number(lovelace) / 1000000;
+  return ada.toFixed(6);
+};
+
+// Smart Extractor: Finds "addr_test1..." inside note text
 const extractCardanoAddress = (text) => {
   if (!text) return null;
-  // Regex looks for "addr_test1" followed by valid bech32 characters
   const regex = /(addr_test1[a-z0-9]+)/i;
   const match = text.match(regex);
   return match ? match[0] : null;
@@ -18,24 +27,28 @@ function App() {
   const [editingId, setEditingId] = useState(null);
   const [editingText, setEditingText] = useState("");
   
+  // Wallet State
   const [walletApiKey, setWalletApiKey] = useState(null);
   const [wallets, setWallets] = useState([]);
   const [selectedWallet, setSelectedWallet] = useState('');
   const [walletAddress, setWalletAddress] = useState('');
   
+  const [walletUtxos, setWalletUtxos] = useState([]); 
+  
+  // Transaction State
   const [recipient, setRecipient] = useState('');
   const [amount, setAmount] = useState(0);
   const [isConnecting, setIsConnecting] = useState(false);
   const [transactionStatus, setTransactionStatus] = useState(null);
   const [copyFeedback, setCopyFeedback] = useState("Click to Copy");
 
-  // Load History from Local Storage
+  // History State
   const [history, setHistory] = useState(() => {
     const saved = localStorage.getItem("txHistory");
     return saved ? JSON.parse(saved) : [];
   });
 
-  // Blockfrost Provider (Preview Network)
+  // Blockfrost Provider
   const [provider] = useState(() => new Blockfrost({
     network: 'cardano-preview',
     projectId: import.meta.env.VITE_BLOCKFROST_PROJECT_KEY,
@@ -58,31 +71,69 @@ function App() {
     localStorage.setItem("txHistory", JSON.stringify(history));
   }, [history]);
 
-  // --- WALLET HANDLERS ---
+  // --- WALLET LOGIC ---
+
   const handleWalletChange = (event) => {
     setSelectedWallet(event.target.value);
     setWalletApiKey(null);
     setWalletAddress('');
+    setWalletUtxos([]);
     setTransactionStatus(null);
   };
 
-  const handleConnectWallet = async () => {
+const handleConnectWallet = async () => {
     if (!selectedWallet) return;
     setIsConnecting(true);
     setTransactionStatus('Connecting...');
     try {
       if (window.cardano[selectedWallet]) {
+        // 1. Enable Wallet
         const api = await window.cardano[selectedWallet].enable();
         setWalletApiKey(api);
+
+        // 2. Get Address
         const changeAddressHex = await api.getChangeAddress();
         const bech32Address = Core.Address.fromBytes(Buffer.from(changeAddressHex, 'hex')).toBech32();
         setWalletAddress(bech32Address);
-        const utxos = await api.getUtxos();
-        console.log("-----------------------------------------");
-        console.log("✅ WALLET CONNECTION SUCCESSFUL");
+
+        const response = await axios.get(
+            `https://cardano-preview.blockfrost.io/api/v0/addresses/${bech32Address}/utxos`,
+            { 
+                headers: { project_id: import.meta.env.VITE_BLOCKFROST_PROJECT_KEY } 
+            }
+        );
+        
+        const rawUtxos = response.data;
+        
+        const readableUtxos = rawUtxos.map((utxo) => {
+            let adaAmount = 0n;
+            let tokens = [];
+
+            // Parse assets in this UTxO
+            utxo.amount.forEach(asset => {
+                if (asset.unit === 'lovelace') {
+                    adaAmount = BigInt(asset.quantity);
+                } else {
+                    // Truncate long token names for display
+                    tokens.push(`${asset.quantity} ${asset.unit.substring(0, 8)}...`);
+                }
+            });
+
+            return {
+                id: `${utxo.tx_hash.substring(0, 8)}...${utxo.output_index}`,
+                fullId: utxo.tx_hash,
+                ada: lovelaceToAda(adaAmount),
+                tokenCount: tokens.length,
+                tokens: tokens
+            };
+        });
+        
+        setWalletUtxos(readableUtxos);
+
+        console.log("✅ WALLET CONNECTED");
         console.log(`Address: ${bech32Address}`);
-        console.log(`Available UTXOs (${utxos.length}):`, utxos);
-        console.log("-----------------------------------------");
+        console.log(`UTxOs:`, readableUtxos);
+
         setTransactionStatus('Wallet Connected ✅');
       }
     } catch (error) {
@@ -92,7 +143,6 @@ function App() {
       setIsConnecting(false);
     }
   };
-
   const handleCopyAddress = () => {
     if (!walletAddress) return;
     navigator.clipboard.writeText(walletAddress);
@@ -101,6 +151,7 @@ function App() {
   };
 
   // --- TRANSACTION LOGIC ---
+
   const handleSubmitTransaction = async () => {
     if (!walletApiKey) {
       setTransactionStatus('🚫 Connect wallet first.');
@@ -121,7 +172,6 @@ function App() {
       const wallet = new WebWallet(walletApiKey);
       const blaze = await Blaze.from(provider, wallet);
       
-      // Verify address before sending
       let recipientAddress;
       try {
         recipientAddress = Core.Address.fromBech32(recipient);
@@ -143,7 +193,6 @@ function App() {
       
       setTransactionStatus(`✅ Sent!`);
       
-      // Update History
       const newRecord = {
         id: Date.now(),
         date: new Date().toLocaleString(),
@@ -168,29 +217,30 @@ function App() {
     }
   };
 
-  // --- NOTES HANDLERS ---
+  // --- NOTES LOGIC ---
+
   const addNote = () => {
     if (newNote.trim() === "") return;
     axios.post("http://localhost:8000/api/notes", { content: newNote })
       .then((res) => { setNotes([...notes, res.data]); setNewNote(""); });
   };
+
   const deleteNote = (id) => axios.delete(`http://localhost:8000/api/notes/${id}`).then(() => setNotes(notes.filter((n) => n.id !== id)));
+
   const updateNote = () => {
     if (editingText.trim() === "") return;
     axios.put(`http://localhost:8000/api/notes/${editingId}`, { content: editingText })
       .then((res) => { setNotes(notes.map((note) => (note.id === editingId ? res.data : note))); setEditingId(null); });
   };
 
-  // The Magic Auto-Fill Handler
   const handleNoteClick = (note) => {
     if (editingId !== null) return;
-    
     const extractedAddress = extractCardanoAddress(note.content);
     if (extractedAddress) {
       setRecipient(extractedAddress);
-      setTransactionStatus(`📍 Address extracted for: "${note.content.substring(0, 15)}..."`);
+      setTransactionStatus(`📍 Address filled: "${note.content.substring(0, 15)}..."`);
     } else {
-      setTransactionStatus('⚠️ No "addr_test1..." found in this note.');
+      setTransactionStatus('⚠️ No valid "addr_test1..." found.');
     }
   };
 
@@ -203,14 +253,14 @@ function App() {
 
       <div className="dashboard-grid">
         
-        {/* --- LEFT: Wallet & Actions --- */}
+        {/* --- LEFT CARD: WALLET OPERATIONS --- */}
         <div className="card wallet-card">
           <div className="card-header">
-            <h2>💳 Operations</h2>
+            <h2>💳 Wallet & UTxOs</h2>
           </div>
           
           <div className="card-body">
-            {/* Wallet Select */}
+            {/* Connection Control */}
             <div className="control-group">
               <label>Connection</label>
               <div className="wallet-connect-row">
@@ -224,14 +274,14 @@ function App() {
               </div>
             </div>
 
-            {/* Click-to-Copy Address Display */}
+            {/* Address Display */}
             <div 
                 className={`info-display ${walletAddress ? 'clickable' : ''}`} 
                 onClick={handleCopyAddress}
                 title="Click to copy address"
             >
                 <div className="info-row">
-                    <span className="info-label">Your Address:</span>
+                    <span className="info-label">My Address:</span>
                     <span className="copy-hint">{walletAddress ? copyFeedback : ''}</span>
                 </div>
                 <span className={`info-value ${walletApiKey ? 'active' : ''}`}>
@@ -241,8 +291,38 @@ function App() {
             </div>
 
             <div className="divider"></div>
+            {walletApiKey && (
+              <div className="control-group">
+                <label>Available Funds (UTxOs)</label>
+                <div className="utxo-list-container">
+                    <div className="utxo-scroll">
+                        {walletUtxos.length > 0 ? (
+                            walletUtxos.map((utxo, i) => (
+                                <div key={i} className="utxo-item" title={utxo.fullHash}>
+                                    <div className="utxo-left">
+                                        <span className="utxo-amount">{utxo.ada} ₳</span>
+                                        {utxo.tokenCount > 0 && (
+                                            <span className="utxo-tokens">
+                                                +{utxo.tokenCount} Token{utxo.tokenCount > 1 ? 's' : ''}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div className="utxo-right">
+                                        <span className="utxo-id">#{utxo.id}</span>
+                                    </div>
+                                </div>
+                            ))
+                        ) : (
+                            <div className="empty-state-small">No UTxOs found (Empty Wallet)</div>
+                        )}
+                    </div>
+                </div>
+              </div>
+            )}
 
-            {/* Form */}
+            <div className="divider"></div>
+
+            {/* Transaction Form */}
             <div className="control-group">
               <label>Recipient</label>
               <input type="text" placeholder="addr_test..." value={recipient} onChange={e => setRecipient(e.target.value)} className="input-field monospace" />
@@ -259,15 +339,15 @@ function App() {
           </div>
         </div>
 
-        {/* --- RIGHT: Smart Notes --- */}
+        {/* --- RIGHT CARD: ADDRESS BOOK --- */}
         <div className="card notes-card">
           <div className="card-header">
-            <h2>📚 Address Book</h2>
+            <h2>📚 Smart Address Book</h2>
             <span className="badge">{notes.length}</span>
           </div>
           <div className="card-body flex-column">
              <div className="add-note-row">
-              <input type="text" value={newNote} onChange={(e) => setNewNote(e.target.value)} placeholder="e.g. Mors Wallet: addr_test1..." className="note-input" />
+              <input type="text" value={newNote} onChange={(e) => setNewNote(e.target.value)} placeholder="Name: addr_test1..." className="note-input" />
               <button onClick={addNote} className="btn-icon-add">＋</button>
             </div>
             
@@ -306,7 +386,7 @@ function App() {
         </div>
       </div>
 
-      {/* --- BOTTOM: History --- */}
+      {/* --- BOTTOM CARD: HISTORY --- */}
       <div className="card history-card">
         <div className="card-header">
             <h2>📜 Transaction History</h2>

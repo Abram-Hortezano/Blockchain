@@ -453,3 +453,71 @@ body {
     min-height: 500px;
   }
 }
+/* --- UTxO List Styling --- */
+.utxo-list-container {
+    background: #0f172a; /* Darker background */
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px;
+    margin-top: 5px;
+}
+
+.utxo-scroll {
+    max-height: 150px; /* Limits height so it doesn't take over screen */
+    overflow-y: auto;
+    padding-right: 5px;
+}
+
+/* Custom scrollbar for UTxOs */
+.utxo-scroll::-webkit-scrollbar { width: 4px; }
+.utxo-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+.utxo-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    font-size: 0.85rem;
+    transition: background 0.2s;
+}
+
+.utxo-item:last-child { border-bottom: none; }
+
+.utxo-item:hover {
+    background: rgba(255,255,255,0.03);
+}
+
+.utxo-left {
+    display: flex;
+    flex-direction: column;
+}
+
+.utxo-amount {
+    color: var(--success);
+    font-weight: bold;
+    font-family: monospace;
+}
+
+.utxo-tokens {
+    font-size: 0.7rem;
+    color: var(--accent);
+}
+
+.utxo-right {
+    text-align: right;
+}
+
+.utxo-id {
+    font-family: monospace;
+    color: var(--text-dim);
+    font-size: 0.75rem;
+}
+
+.empty-state-small {
+    text-align: center;
+    color: var(--text-dim);
+    font-style: italic;
+    font-size: 0.8rem;
+    padding: 10px;
+}
